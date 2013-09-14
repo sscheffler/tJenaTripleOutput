@@ -1,0 +1,64 @@
+<%@ jet 
+imports="
+    org.talend.core.model.process.INode 
+    org.talend.designer.codegen.config.CodeGeneratorArgument
+    org.talend.core.model.process.ElementParameterParser
+    org.talend.core.model.metadata.IMetadataTable
+    org.talend.core.model.metadata.IMetadataColumn 
+    org.talend.core.model.process.IConnection
+    java.util.List
+"
+%>
+
+<%
+	CodeGeneratorArgument codeGenArgument = (CodeGeneratorArgument) argument;
+	INode node = (INode)codeGenArgument.getArgument();
+	String cid = node.getUniqueName();
+	String ont = ElementParameterParser.getValue(node, "__MESSAGE__");
+	String conName=node.getIncomingConnections().get(0).getName();
+	String label = node.getIncomingConnections().get(0).getMetadataTable().getColumn("subject").getLabel();
+	String dataAction = ElementParameterParser.getValue(node,"__DATA_ACTION__");
+	Boolean use_prefixMap=new Boolean(ElementParameterParser.getValue(node, "__USE_GLOBALNAMESPACEMAP_CHECK__"));
+	Boolean use_offset=new Boolean(ElementParameterParser.getValue(node, "__OFFSET_CHECK__"));
+	%>
+	
+	com.hp.hpl.jena.graph.Node subject=null;
+	com.hp.hpl.jena.graph.Node predicate=null;
+	com.hp.hpl.jena.graph.Node object=null;
+	
+	<%if(use_prefixMap){%>
+		subject=com.hp.hpl.jena.sparql.util.NodeFactory.parseNode(<%=conName%>.subject, prefixMapping_<%=cid%>);
+		predicate=com.hp.hpl.jena.sparql.util.NodeFactory.parseNode(<%=conName%>.predicate, prefixMapping_<%=cid%>);
+		object=com.hp.hpl.jena.sparql.util.NodeFactory.parseNode(<%=conName%>.object, prefixMapping_<%=cid%>);	
+	<%}else{%>
+		subject=com.hp.hpl.jena.sparql.util.NodeFactory.parseNode(<%=conName%>.subject);
+		predicate=com.hp.hpl.jena.sparql.util.NodeFactory.parseNode(<%=conName%>.predicate);
+		object=com.hp.hpl.jena.sparql.util.NodeFactory.parseNode(<%=conName%>.object);
+	<%}%>
+	
+	com.hp.hpl.jena.graph.Triple t_<%=cid%> = new com.hp.hpl.jena.graph.Triple(subject, predicate, object);
+	acc_<%=cid%>.addTriple(t_<%=cid%>);
+	
+	com.hp.hpl.jena.update.Update update_<%=cid%> = null; 
+	
+	<%if("INSERT".equals(dataAction)){%>
+		com.hp.hpl.jena.sparql.modify.request.UpdateDataInsert insert_<%=cid%> = new com.hp.hpl.jena.sparql.modify.request.UpdateDataInsert(acc_<%=cid%>);
+		update_<%=cid%>=insert_<%=cid%>;
+	<%}%>
+	
+	<%if("DELETE".equals(dataAction)){%>
+		com.hp.hpl.jena.sparql.modify.request.UpdateDataDelete delete_<%=cid%> = new com.hp.hpl.jena.sparql.modify.request.UpdateDataDelete(acc_<%=cid%>);
+		update_<%=cid%>=delete_<%=cid%>;
+	<%}%>
+	
+	updateRequest_<%=cid%>.add(update_<%=cid%>);
+	
+	<%if(use_offset){%>
+		offsetCounter_<%=cid%>++;
+		if(offsetCounter_<%=cid%> == offsetInteger_<%=cid%>){
+			com.hp.hpl.jena.update.UpdateExecutionFactory.createRemote(updateRequest_<%=cid%>, host_<%=cid%>+"update").execute();
+			updateRequest_<%=cid%> = new com.hp.hpl.jena.update.UpdateRequest();
+			offsetCounter_<%=cid%>=0;
+		}
+	<%}%>
+	
